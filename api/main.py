@@ -19,19 +19,11 @@ setup_logging()
 
 import os
 
-_extra_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
-ALLOWED_ORIGINS = [
-    "http://localhost:3000", "http://localhost:3002",
-    "http://localhost:3003", "http://localhost:5173",
-    "https://frontend-pi-five-89.vercel.app",
-    "https://frontend-d4ufefh6r-kks-projects-19b0a2b5.vercel.app",
-] + [o.strip() for o in _extra_origins if o.strip()]
-
 app = FastAPI(title="OptionsAgent API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
