@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+data/iv_history.db
+data/*.db
+data/*.db-journal
+reports/
+node_modules/
+.next/
+.pytest_cache/
+dist/
+build/
