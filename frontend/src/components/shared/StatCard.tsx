@@ -7,10 +7,10 @@ export default function StatCard({ label, value, sub, color }: {
   color?: string;
 }) {
   return (
-    <div className="bg-[#111] border border-gray-800 rounded-lg p-4">
-      <div className="text-[11px] text-gray-500 uppercase tracking-wide mb-1">{label}</div>
-      <div className={`text-xl font-mono font-semibold ${color || "text-gray-100"}`}>{value}</div>
-      {sub && <div className="text-xs text-gray-500 mt-1">{sub}</div>}
+    <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg p-4">
+      <div className="text-[11px] text-[var(--text-muted)] uppercase tracking-wide mb-1">{label}</div>
+      <div className={`text-xl font-mono font-semibold ${color || "text-[var(--text-primary)]"}`}>{value}</div>
+      {sub && <div className="text-xs text-[var(--text-muted)] mt-1">{sub}</div>}
     </div>
   );
 }

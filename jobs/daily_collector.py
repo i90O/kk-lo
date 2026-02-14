@@ -9,9 +9,12 @@ Usage:
 
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 import schedule
+
+# US Eastern Time offset (ET = UTC-5, EDT = UTC-4)
+_ET = timezone(timedelta(hours=-5))
 from rich.console import Console
 from log import setup_logging
 
@@ -50,14 +53,15 @@ def daily_iv_collection():
 
 def intraday_unusual_scan():
     """Intraday unusual activity scan. Run every 30 minutes during market hours."""
-    now = datetime.now()
+    now_et = datetime.now(_ET)
     # Skip weekends
-    if now.weekday() >= 5:
+    if now_et.weekday() >= 5:
         return
-    # Skip outside market hours (rough check: 9:30-16:00 ET)
-    hour = now.hour
-    if hour < 9 or hour >= 16:
+    # Skip outside market hours (9:30-16:00 ET)
+    market_minutes = now_et.hour * 60 + now_et.minute
+    if market_minutes < 9 * 60 + 30 or market_minutes >= 16 * 60:
         return
+    now = now_et
 
     console.print(f"\n[bold]Unusual Activity Scan - {now.strftime('%H:%M')}[/bold]")
 
@@ -95,34 +99,39 @@ def run_once():
         from data.models import init_db, get_session, UnusualActivity
         init_db()
         session = get_session()
-        today = datetime.now().date()
-        saved = 0
-        for r in results:
-            try:
-                exp_str = r.get("expiration", "")
-                exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date() if exp_str else None
-            except (ValueError, TypeError):
-                exp_date = None
-            entry = UnusualActivity(
-                ticker=r.get("ticker", ""),
-                date=today,
-                alert_type=r.get("type", ""),
-                contract_symbol=r.get("contract", ""),
-                contract_type=r.get("side", "").lower() or None,
-                strike=r.get("strike"),
-                expiration=exp_date,
-                volume=r.get("volume"),
-                open_interest=r.get("open_interest"),
-                vol_oi_ratio=r.get("vol_oi_ratio"),
-                iv=r.get("iv"),
-                premium_flow=r.get("premium_flow"),
-                interpretation=r.get("interpretation"),
-            )
-            session.add(entry)
-            saved += 1
-        session.commit()
-        session.close()
-        console.print(f"\n[dim]Saved {saved} alerts to database.[/dim]")
+        try:
+            today = datetime.now().date()
+            saved = 0
+            for r in results:
+                try:
+                    exp_str = r.get("expiration", "")
+                    exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date() if exp_str else None
+                except (ValueError, TypeError):
+                    exp_date = None
+                entry = UnusualActivity(
+                    ticker=r.get("ticker", ""),
+                    date=today,
+                    alert_type=r.get("type", ""),
+                    contract_symbol=r.get("contract", ""),
+                    contract_type=r.get("side", "").lower() or None,
+                    strike=r.get("strike"),
+                    expiration=exp_date,
+                    volume=r.get("volume"),
+                    open_interest=r.get("open_interest"),
+                    vol_oi_ratio=r.get("vol_oi_ratio"),
+                    iv=r.get("iv"),
+                    premium_flow=r.get("premium_flow"),
+                    interpretation=r.get("interpretation"),
+                )
+                session.add(entry)
+                saved += 1
+            session.commit()
+            console.print(f"\n[dim]Saved {saved} alerts to database.[/dim]")
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
     except Exception as e:
         logger.warning("DB save error: %s", e)
         console.print(f"\n[dim]DB note: {e}[/dim]")

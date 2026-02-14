@@ -3,7 +3,7 @@ SQLAlchemy database models for OptionsAgent.
 Supports both PostgreSQL (production) and SQLite (local dev).
 """
 
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from sqlalchemy import (
     Column, Integer, Float, String, Date, DateTime, Text, Boolean,
     create_engine, Index,
@@ -15,21 +15,18 @@ Base = declarative_base()
 
 
 class IVHistory(Base):
-    """Daily IV snapshots for tracking IV percentile/rank over time."""
+    """Daily IV snapshots for tracking IV percentile/rank over time.
+    Schema matches iv_tracker.py raw SQLite table."""
     __tablename__ = "iv_history"
 
     id = Column(Integer, primary_key=True)
     ticker = Column(String(10), nullable=False, index=True)
-    date = Column(Date, nullable=False, index=True)
-    atm_iv_30d = Column(Float)      # 30-day ATM implied volatility
-    atm_iv_60d = Column(Float)      # 60-day ATM implied volatility
-    hv_20d = Column(Float)          # 20-day historical volatility
-    hv_60d = Column(Float)          # 60-day historical volatility
-    iv_hv_spread = Column(Float)    # IV - HV spread
-    put_call_ratio = Column(Float)
-    total_options_volume = Column(Integer)
+    date = Column(String(10), nullable=False, index=True)
+    atm_iv = Column(Float)          # ATM implied volatility (~30 DTE)
+    hv20 = Column(Float)            # 20-day historical volatility
+    hv60 = Column(Float)            # 60-day historical volatility
     close_price = Column(Float)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         Index("ix_iv_ticker_date", "ticker", "date", unique=True),
@@ -54,7 +51,7 @@ class UnusualActivity(Base):
     iv = Column(Float)
     premium_flow = Column(Float)
     interpretation = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class AnalysisReport(Base):
@@ -70,7 +67,7 @@ class AnalysisReport(Base):
     iv_percentile = Column(Float)
     recommended_strategy = Column(String(50))
     report_json = Column(Text)             # full report as JSON
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class TradeLog(Base):
@@ -91,30 +88,45 @@ class TradeLog(Base):
     paper = Column(Boolean, default=True)
     submitted_at = Column(DateTime)
     filled_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 # --- Database initialization ---
 
+_engine = None
+_SessionFactory = None
+
+
 def get_engine():
-    """Get SQLAlchemy engine. Try PostgreSQL if configured, fall back to SQLite."""
+    """Get SQLAlchemy engine (singleton). Try PostgreSQL if configured, fall back to SQLite."""
+    global _engine
+    if _engine is not None:
+        return _engine
+
     if DATABASE_URL and "postgresql" in DATABASE_URL:
         try:
-            engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-            with engine.connect():
+            _engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+            with _engine.connect():
                 pass  # Connection test
-            return engine
-        except Exception:
-            pass  # PostgreSQL not available, fall back to SQLite
+            return _engine
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "PostgreSQL connection failed, falling back to SQLite: %s", e
+            )
+            _engine = None
+
     sqlite_url = f"sqlite:///{DB_PATH}"
-    return create_engine(sqlite_url)
+    _engine = create_engine(sqlite_url)
+    return _engine
 
 
 def get_session():
     """Get a new database session."""
-    engine = get_engine()
-    Session = sessionmaker(bind=engine)
-    return Session()
+    global _SessionFactory
+    if _SessionFactory is None:
+        _SessionFactory = sessionmaker(bind=get_engine())
+    return _SessionFactory()
 
 
 def init_db():

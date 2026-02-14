@@ -5,7 +5,6 @@ Provides REST API + WebSocket for the frontend.
 Run: uvicorn api.main:app --reload --port 8000
 """
 
-import json
 import time
 from datetime import datetime
 from collections import defaultdict
@@ -18,7 +17,13 @@ from log import setup_logging
 
 setup_logging()
 
-ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:5173"]
+import os
+
+_extra_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
+ALLOWED_ORIGINS = [
+    "http://localhost:3000", "http://localhost:3002",
+    "http://localhost:3003", "http://localhost:5173",
+] + [o.strip() for o in _extra_origins if o.strip()]
 
 app = FastAPI(title="OptionsAgent API", version="0.2.0")
 
@@ -31,6 +36,7 @@ app.add_middleware(
 
 # --- Simple in-memory rate limiter (30 req/min/IP) ---
 _rate_store: dict[str, list[float]] = defaultdict(list)
+_last_prune: float = 0.0
 RATE_LIMIT = 30
 RATE_WINDOW = 60  # seconds
 
@@ -39,15 +45,21 @@ RATE_WINDOW = 60  # seconds
 async def rate_limit_middleware(request: Request, call_next):
     client_ip = request.client.host if request.client else "unknown"
     now = time.time()
-    timestamps = _rate_store[client_ip]
-    # Evict old entries
-    _rate_store[client_ip] = [t for t in timestamps if now - t < RATE_WINDOW]
+    # Evict old entries for this IP
+    _rate_store[client_ip] = [t for t in _rate_store[client_ip] if now - t < RATE_WINDOW]
     if len(_rate_store[client_ip]) >= RATE_LIMIT:
         return JSONResponse(
             status_code=429,
             content={"detail": "Rate limit exceeded. Max 30 requests per minute."},
         )
     _rate_store[client_ip].append(now)
+    # Prune stale IPs every 5 minutes
+    global _last_prune
+    if now - _last_prune > 300:
+        _last_prune = now
+        stale = [ip for ip, ts in _rate_store.items() if not ts or now - ts[-1] > RATE_WINDOW]
+        for ip in stale:
+            del _rate_store[ip]
     return await call_next(request)
 
 
@@ -81,13 +93,14 @@ async def root():
             "/api/news/{ticker}",
             "/api/account",
             "/api/positions",
+            "/api/strategy/{ticker}",
             "/ws/alerts",
         ],
     }
 
 
 @app.post("/api/analyze")
-async def analyze(request: AnalyzeRequest):
+def analyze(request: AnalyzeRequest):
     """Full AI analysis for a ticker."""
     from agents.options_agent import invoke
 
@@ -97,7 +110,7 @@ async def analyze(request: AnalyzeRequest):
 
 
 @app.post("/api/chat")
-async def chat(request: ChatRequest):
+def chat(request: ChatRequest):
     """Free-form AI chat."""
     from agents.options_agent import invoke
 
@@ -106,12 +119,12 @@ async def chat(request: ChatRequest):
 
 
 @app.get("/api/scanner/unusual")
-async def unusual_activity(tickers: str = Query(None)):
+def unusual_activity(tickers: str = Query(None)):
     """Scan for unusual options activity."""
     from tools.unusual_activity import scan_unusual
     from config import WATCHLIST
 
-    ticker_list = tickers.split(",") if tickers else WATCHLIST
+    ticker_list = tickers.split(",")[:20] if tickers else WATCHLIST
     results = scan_unusual(ticker_list)
     return {
         "scan_time": datetime.now().isoformat(),
@@ -121,7 +134,7 @@ async def unusual_activity(tickers: str = Query(None)):
 
 
 @app.get("/api/iv/{ticker}")
-async def iv_data(ticker: str):
+def iv_data(ticker: str):
     """Get IV percentile and rank for a ticker."""
     from tools.iv_tracker import get_iv_percentile, record_daily_iv
 
@@ -131,7 +144,7 @@ async def iv_data(ticker: str):
 
 
 @app.get("/api/technical/{ticker}")
-async def technical_analysis(ticker: str):
+def technical_analysis(ticker: str):
     """Get technical analysis for a ticker."""
     from tools.technical import full_technical_analysis
 
@@ -140,7 +153,7 @@ async def technical_analysis(ticker: str):
 
 
 @app.get("/api/news/{ticker}")
-async def news(ticker: str, limit: int = Query(10)):
+def news(ticker: str, limit: int = Query(10)):
     """Get news for a ticker."""
     from tools.news_sentiment import analyze_news_sentiment
 
@@ -149,7 +162,7 @@ async def news(ticker: str, limit: int = Query(10)):
 
 
 @app.get("/api/account")
-async def account():
+def account():
     """Get Alpaca paper trading account info."""
     from tools.trade_executor import get_account_info
 
@@ -158,7 +171,7 @@ async def account():
 
 
 @app.get("/api/positions")
-async def positions():
+def positions():
     """Get current positions."""
     from tools.trade_executor import get_positions
 
@@ -166,8 +179,30 @@ async def positions():
     return result
 
 
+@app.get("/api/price-history/{ticker}")
+def price_history(ticker: str, period: str = Query("6mo")):
+    """Get OHLCV price history for charts."""
+    from tools.market_data import get_stock_data
+
+    df = get_stock_data(ticker, period)
+    if df.empty:
+        return {"ticker": ticker, "period": period, "data": []}
+
+    records = []
+    for date, row in df.iterrows():
+        records.append({
+            "time": date.strftime("%Y-%m-%d"),
+            "open": round(row["Open"], 2) if row["Open"] is not None else None,
+            "high": round(row["High"], 2) if row["High"] is not None else None,
+            "low": round(row["Low"], 2) if row["Low"] is not None else None,
+            "close": round(row["Close"], 2) if row["Close"] is not None else None,
+            "volume": int(row["Volume"]) if row["Volume"] is not None else 0,
+        })
+    return {"ticker": ticker, "period": period, "count": len(records), "data": records}
+
+
 @app.get("/api/chain/{ticker}")
-async def options_chain(
+def options_chain(
     ticker: str,
     contract_type: str = Query(None),
     expiration_gte: str = Query(None),
@@ -188,6 +223,47 @@ async def options_chain(
     return result
 
 
+@app.get("/api/strategy/{ticker}")
+def strategy_recommendation(
+    ticker: str,
+    risk_level: str = Query("moderate"),
+    account_size: float = Query(10000),
+    dte: int = Query(30),
+):
+    """Get strategy recommendations based on technical + IV analysis."""
+    from tools.technical import full_technical_analysis
+    from tools.iv_tracker import get_iv_percentile, record_daily_iv
+    from tools.strategy import recommend_strategies
+
+    # Get current analysis
+    tech = full_technical_analysis(ticker)
+    record_daily_iv(ticker)
+    iv = get_iv_percentile(ticker)
+
+    current_price = tech.get("current_price", 0)
+    trend = tech.get("trend", "neutral")
+    iv_percentile = iv.get("iv_percentile")
+    atr = tech.get("atr")
+
+    strategies = recommend_strategies(
+        ticker=ticker,
+        current_price=current_price,
+        trend=trend,
+        iv_percentile=iv_percentile,
+        days_to_expiry=dte,
+        risk_level=risk_level,
+        account_size=account_size,
+        atr=atr,
+    )
+
+    return {
+        "ticker": ticker,
+        "trend": trend,
+        "iv_percentile": iv_percentile,
+        "strategies": strategies,
+    }
+
+
 # --- WebSocket for real-time alerts ---
 
 class ConnectionManager:
@@ -199,14 +275,20 @@ class ConnectionManager:
         self.active.append(ws)
 
     def disconnect(self, ws: WebSocket):
-        self.active.remove(ws)
+        try:
+            self.active.remove(ws)
+        except ValueError:
+            pass
 
     async def broadcast(self, message: dict):
+        dead = []
         for ws in self.active:
             try:
                 await ws.send_json(message)
             except Exception:
-                pass
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect(ws)
 
 
 manager = ConnectionManager()

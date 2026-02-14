@@ -17,12 +17,8 @@ export default function AccountView() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-gray-200">Paper Trading Account</h2>
       <AccountCards />
-      <div>
-        <h3 className="text-sm font-semibold text-gray-400 mb-2">Open Positions</h3>
-        <PositionsTable />
-      </div>
+      <PositionsTable />
     </div>
   );
 }

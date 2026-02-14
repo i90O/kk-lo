@@ -36,7 +36,7 @@ def analyze_technicals(ticker: str, period: str = "6mo") -> dict:
         period: Data period "1mo", "3mo", "6mo", "1y"
     """
     from tools.technical import full_technical_analysis
-    return full_technical_analysis(ticker)
+    return full_technical_analysis(ticker, period=period)
 
 
 @lc_tool

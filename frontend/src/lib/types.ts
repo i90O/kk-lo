@@ -39,6 +39,8 @@ export interface IVData {
   iv_rank: number | null;
   iv_min?: number | null;
   iv_max?: number | null;
+  hv20?: number | null;
+  hv60?: number | null;
   data_points: number;
   message?: string;
 }
@@ -134,4 +136,66 @@ export interface Position {
   error?: string;
 }
 
-export type TabId = "dashboard" | "analysis" | "scanner" | "account";
+// --- Strategy Types ---
+export interface StrategyLeg {
+  action: string;
+  type: string;
+  strike: number;
+  expiry_display: string;
+}
+
+export interface Strategy {
+  name_en: string;
+  description: string;
+  legs: StrategyLeg[];
+  max_profit: string;
+  max_loss: string;
+  risk_reward: string;
+  win_rate_est: string;
+  position_size: string;
+  exit_rules: string[];
+}
+
+export interface StrategyResponse {
+  ticker: string;
+  trend: string;
+  iv_percentile: number | null;
+  strategies: Strategy[];
+}
+
+// --- Chat Types ---
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  loading?: boolean;
+}
+
+// --- Toast Types ---
+export interface ToastMessage {
+  id: string;
+  type: "success" | "error" | "info" | "warning";
+  message: string;
+  duration?: number;
+}
+
+// --- Price History ---
+export interface PriceBar {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface PriceHistoryResponse {
+  ticker: string;
+  period: string;
+  count: number;
+  data: PriceBar[];
+}
+
+// --- Tabs ---
+export type TabId = "dashboard" | "analysis" | "scanner" | "account" | "chat";

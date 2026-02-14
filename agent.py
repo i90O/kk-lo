@@ -44,6 +44,9 @@ def full_analysis(
     console.print("  [dim]1/6 Fetching stock info...[/dim]")
     info = get_stock_info(ticker)
     price = get_current_price(ticker)
+    if price <= 0:
+        console.print(f"  [red]Could not get price for {ticker}. Aborting.[/red]")
+        return {"ticker": ticker, "error": f"No price data for {ticker}"}
 
     # Step 2: Technical analysis
     console.print("  [dim]2/6 Running technical analysis...[/dim]")

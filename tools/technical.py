@@ -6,12 +6,12 @@ import ta
 from tools.market_data import get_stock_data, get_current_price
 
 
-def full_technical_analysis(ticker: str) -> dict:
+def full_technical_analysis(ticker: str, period: str = "6mo") -> dict:
     """
     Run full technical analysis on a ticker.
     Returns dict with all indicators and a composite signal summary.
     """
-    df = get_stock_data(ticker, period="6mo")
+    df = get_stock_data(ticker, period=period)
     if df.empty:
         return {"error": f"No data for {ticker}"}
 

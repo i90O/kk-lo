@@ -19,7 +19,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-[#0a0a0a] text-gray-100 antialiased">{children}</body>
+      <body className="bg-[var(--bg-primary)] text-[var(--text-primary)] antialiased">{children}</body>
     </html>
   );
 }

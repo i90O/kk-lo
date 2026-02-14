@@ -9,11 +9,11 @@ export default function AccountCards() {
 
   if (!acc || acc.error) {
     return (
-      <div className="bg-[#111] border border-gray-800 rounded-lg p-6 text-center">
-        <div className="text-gray-500 text-sm">
+      <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg p-6 text-center">
+        <div className="text-[var(--text-muted)] text-sm">
           {acc?.error || "Account data not available"}
         </div>
-        <div className="text-gray-600 text-xs mt-2">
+        <div className="text-[var(--text-muted)] text-xs mt-2 opacity-60">
           Configure ALPACA_API_KEY in .env to enable paper trading
         </div>
       </div>
@@ -25,7 +25,7 @@ export default function AccountCards() {
       <StatCard label="Portfolio Value" value={formatCurrency(acc.portfolio_value)} />
       <StatCard label="Equity" value={formatCurrency(acc.equity)} />
       <StatCard label="Cash" value={formatCurrency(acc.cash)} />
-      <StatCard label="Buying Power" value={formatCurrency(acc.buying_power)} color="text-green-400" />
+      <StatCard label="Buying Power" value={formatCurrency(acc.buying_power)} color="text-[var(--bullish)]" />
     </div>
   );
 }

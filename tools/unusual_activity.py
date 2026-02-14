@@ -75,8 +75,8 @@ def _scan_ticker(ticker: str) -> list[dict]:
 
             # Calculate DTE
             try:
-                exp_dt = datetime.strptime(exp_date, "%Y-%m-%d")
-                dte = (exp_dt - datetime.now()).days
+                exp_dt = datetime.strptime(exp_date, "%Y-%m-%d").date()
+                dte = (exp_dt - datetime.now().date()).days
             except (ValueError, TypeError):
                 dte = 0
             is_far_month = dte > 90

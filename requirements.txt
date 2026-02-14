@@ -1,0 +1,14 @@
+polygon-api-client
+alpaca-py
+langchain
+langgraph
+langchain-anthropic
+pandas
+numpy
+ta
+python-dotenv
+rich
+fastapi
+uvicorn[standard]
+schedule
+pydantic

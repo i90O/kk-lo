@@ -34,12 +34,12 @@ export function formatNumber(val: number | null | undefined, decimals = 2): stri
 }
 
 export function formatPL(val: number | string | null | undefined): { text: string; color: string } {
-  if (val === null || val === undefined) return { text: "N/A", color: "text-gray-500" };
+  if (val === null || val === undefined) return { text: "N/A", color: "text-[var(--text-muted)]" };
   const num = typeof val === "string" ? parseFloat(val) : val;
-  if (isNaN(num)) return { text: "N/A", color: "text-gray-500" };
-  if (num > 0) return { text: "+$" + Math.abs(num).toFixed(2), color: "text-green-400" };
-  if (num < 0) return { text: "-$" + Math.abs(num).toFixed(2), color: "text-red-400" };
-  return { text: "$0.00", color: "text-gray-400" };
+  if (isNaN(num)) return { text: "N/A", color: "text-[var(--text-muted)]" };
+  if (num > 0) return { text: "+$" + Math.abs(num).toFixed(2), color: "text-[var(--bullish)]" };
+  if (num < 0) return { text: "-$" + Math.abs(num).toFixed(2), color: "text-[var(--bearish)]" };
+  return { text: "$0.00", color: "text-[var(--text-secondary)]" };
 }
 
 export function timeAgo(dateStr: string): string {
@@ -58,16 +58,16 @@ export function timeAgo(dateStr: string): string {
 
 export function signalColor(signal: string): string {
   switch (signal) {
-    case "bullish": return "text-green-400";
-    case "bearish": return "text-red-400";
-    default: return "text-yellow-400";
+    case "bullish": return "text-[var(--bullish)]";
+    case "bearish": return "text-[var(--bearish)]";
+    default: return "text-[var(--neutral)]";
   }
 }
 
 export function signalBg(signal: string): string {
   switch (signal) {
-    case "bullish": return "bg-green-500/20 text-green-400 border-green-500/30";
-    case "bearish": return "bg-red-500/20 text-red-400 border-red-500/30";
-    default: return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+    case "bullish": return "bg-[var(--bullish)]/20 text-[var(--bullish)] border-[var(--bullish)]/30";
+    case "bearish": return "bg-[var(--bearish)]/20 text-[var(--bearish)] border-[var(--bearish)]/30";
+    default: return "bg-[var(--neutral)]/20 text-[var(--neutral)] border-[var(--neutral)]/30";
   }
 }
